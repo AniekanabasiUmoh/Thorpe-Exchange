@@ -1,14 +1,18 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [main, staging]
   push:
-    branches: [main, staging]
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  ci:
-    name: Typecheck, Lint, Test
+  quality:
+    name: Typecheck · Lint · Test
     runs-on: ubuntu-latest
 
     steps:
@@ -18,29 +22,49 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
+      - name: TypeScript typecheck
         run: npm run typecheck
 
       - name: Lint
         run: npm run lint
 
-      - name: Test
+      - name: Run tests
         run: npm test
         env:
           NODE_ENV: test
-          # Fake credentials — unit tests use in-memory mocks, no real connections needed
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/testdb
           REDIS_URL: redis://localhost:6379
           BREET_MOCK: "true"
+          BREET_API_BASE_URL: https://api.breet.io
           SPREAD_PERCENT: "1.5"
           MIN_TX_AMOUNT: "10"
           MAX_TX_AMOUNT: "10000"
           MAX_MESSAGES_PER_MINUTE: "5"
           MAX_TX_PER_DAY: "3"
           MAX_DAILY_VOLUME_NGN: "500000"
+
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    # Only verify the Docker build compiles — don't push to a registry yet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: thorpe-exchange:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
