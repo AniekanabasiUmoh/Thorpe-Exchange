@@ -7,7 +7,10 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:test@localhost:5432/test\" REDIS_URL=\"redis://localhost:6379\" timeout 5 npm run dev)",
       "Bash(timeout 3 npm run dev)",
       "Bash(node -e \":*)",
-      "Bash(DATABASE_URL=\"\" REDIS_URL=\"\" npx tsx -e \"import ''./src/config/env.js''\")"
+      "Bash(DATABASE_URL=\"\" REDIS_URL=\"\" npx tsx -e \"import ''./src/config/env.js''\")",
+      "Bash(DATABASE_URL=\"postgresql://x:x@localhost:5432/x\" REDIS_URL=\"redis://localhost:6379\" npm test)",
+      "Bash(python3 -c \":*)",
+      "Bash(node -e \"console.log\\(typeof crypto, crypto.randomUUID\\(\\)\\)\")"
     ]
   }
 }

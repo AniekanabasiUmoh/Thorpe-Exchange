@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, staging]
   push:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
   ci:
@@ -34,5 +34,13 @@ jobs:
         run: npm test
         env:
           NODE_ENV: test
+          # Fake credentials — unit tests use in-memory mocks, no real connections needed
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
           REDIS_URL: redis://localhost:6379
+          BREET_MOCK: "true"
+          SPREAD_PERCENT: "1.5"
+          MIN_TX_AMOUNT: "10"
+          MAX_TX_AMOUNT: "10000"
+          MAX_MESSAGES_PER_MINUTE: "5"
+          MAX_TX_PER_DAY: "3"
+          MAX_DAILY_VOLUME_NGN: "500000"

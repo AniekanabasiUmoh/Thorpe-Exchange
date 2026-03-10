@@ -6,6 +6,7 @@ import { connectWithRetry, pool } from './db/db.js';
 import { handleBreetWebhook } from './webhooks/breet.js';
 import { handleTelegramWebhook } from './webhooks/telegram.js';
 import { handleMetaWebhook } from './webhooks/meta.js';
+import { registerSimulatorRoutes } from './webhooks/simulator.js';
 
 const app = Fastify({
   logger: false, // We use our own Pino instance
@@ -76,17 +77,9 @@ app.post('/webhook/breet', handleBreetWebhook);
 app.post('/webhook/telegram', handleTelegramWebhook);
 app.post('/webhook/whatsapp', handleMetaWebhook);
 
-// Dev simulator endpoints (disabled in production)
+// Dev simulator endpoints — disabled in production
 if (env.NODE_ENV !== 'production') {
-  app.post('/dev/simulate/deposit', async (_request, reply) => {
-    // TODO: Sprint 2.2 — fire fake DEPOSIT_CONFIRMED event
-    return reply.send({ message: 'Deposit simulation — stub' });
-  });
-
-  app.post('/dev/simulate/payout', async (_request, reply) => {
-    // TODO: Sprint 2.2 — fire fake PAYOUT_COMPLETED event
-    return reply.send({ message: 'Payout simulation — stub' });
-  });
+  registerSimulatorRoutes(app);
 }
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────────
