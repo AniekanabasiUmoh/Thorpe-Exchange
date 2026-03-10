@@ -59,6 +59,9 @@ export const messages = {
 
   volumeLimitReached: `You've reached your daily volume limit. Please try again tomorrow.`,
 
+  rateExpiredCron: `⏱ *Transaction Expired*\n\nYour transaction for {{amount}} {{ticker}} has expired because we didn't receive your deposit in time.\n\nType *sell* to start a new transaction at the current rate.`,
+
+
   transactionExpired: `Your transaction has expired. Please start a new one with *sell*.`,
 
   genericError: `Something went wrong on our end. Please try again or contact support.`,

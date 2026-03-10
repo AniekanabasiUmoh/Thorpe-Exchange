@@ -6,6 +6,7 @@
  *
  * Security: Telegram sends a secret_token header we verify before processing.
  */
+import { timingSafeEqual } from 'crypto';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { Update } from 'grammy/types';
 import { env } from '../config/env.js';
@@ -19,10 +20,29 @@ export async function handleTelegramWebhook(
   // Verify Telegram webhook secret header
   const secretHeader = request.headers['x-telegram-bot-api-secret-token'] as string | undefined;
 
-  if (env.TELEGRAM_WEBHOOK_SECRET && secretHeader !== env.TELEGRAM_WEBHOOK_SECRET) {
-    logger.warn({ secretHeader }, 'Telegram webhook: invalid secret token');
+  if (env.TELEGRAM_WEBHOOK_SECRET) {
+    let isValid = false;
+    if (secretHeader) {
+      try {
+        isValid = timingSafeEqual(Buffer.from(secretHeader), Buffer.from(env.TELEGRAM_WEBHOOK_SECRET));
+      } catch {
+        isValid = false;
+      }
+    }
+
+    if (!isValid) {
+      logger.warn({ ip: request.ip }, 'Telegram webhook: invalid secret token — rejected');
+      await reply.code(401).send({ error: 'Unauthorized' });
+      return;
+    }
+  } else if (env.NODE_ENV === 'production') {
+    // env.ts .refine() prevents boot without this secret in production,
+    // but defend in depth — never accept unsigned updates on live traffic.
+    logger.error('TELEGRAM_WEBHOOK_SECRET not set in production — rejecting update');
     await reply.code(401).send({ error: 'Unauthorized' });
     return;
+  } else {
+    logger.warn({ ip: request.ip }, 'Telegram webhook: no secret configured (dev mode) — accepting');
   }
 
   // Acknowledge receipt immediately — Grammy processes async

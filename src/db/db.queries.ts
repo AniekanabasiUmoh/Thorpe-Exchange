@@ -65,7 +65,7 @@ export async function createOrFindUser(
         `INSERT INTO users (${col})
      VALUES ($1)
      ON CONFLICT (${col}) DO UPDATE SET updated_at = NOW()
-     RETURNING *`,
+     RETURNING id, whatsapp_number, telegram_id, is_blocked, block_reason`,
         [identifier],
     );
 
@@ -74,7 +74,7 @@ export async function createOrFindUser(
 
 export async function getUserById(userId: string): Promise<DbUser | null> {
     const result = await pool.query<DbUser>(
-        'SELECT * FROM users WHERE id = $1',
+        'SELECT id, whatsapp_number, telegram_id, is_blocked, block_reason FROM users WHERE id = $1',
         [userId],
     );
     return result.rows[0] ?? null;
@@ -91,7 +91,10 @@ export async function createTransaction(
         service_margin, rate_locked_at, expires_at,
         payout_bank_code, payout_account, payout_account_name, status)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'PENDING')
-     RETURNING *`,
+     RETURNING id, user_id, breet_transaction_id, asset_amount, fiat_amount, locked_rate,
+               raw_breet_rate, service_margin, rate_locked_at, expires_at, deposit_address,
+               payout_bank_code, payout_account, payout_account_name, idempotency_key,
+               status, failure_reason, settled_rate, settled_fiat_amount`,
         [
             params.userId,
             params.assetAmount,
@@ -110,11 +113,12 @@ export async function createTransaction(
 }
 export async function getActiveTransaction(userId: string): Promise<DbTransaction | null> {
     const result = await pool.query<DbTransaction>(
-        `SELECT * FROM transactions
-     WHERE user_id = $1
-       AND status IN ('PENDING', 'AWAITING_DEPOSIT', 'CONFIRMING', 'PROCESSING')
-     ORDER BY created_at DESC
-     LIMIT 1`,
+        `SELECT id, user_id, asset_amount, fiat_amount, locked_rate, raw_breet_rate, service_margin, rate_locked_at, expires_at, status, created_at, updated_at
+         FROM transactions
+         WHERE user_id = $1
+           AND status IN ('PENDING', 'AWAITING_DEPOSIT', 'CONFIRMING', 'PROCESSING')
+         ORDER BY created_at DESC
+         LIMIT 1`,
         [userId],
     );
     return result.rows[0] ?? null;
@@ -122,7 +126,11 @@ export async function getActiveTransaction(userId: string): Promise<DbTransactio
 
 export async function getTransactionById(txId: string): Promise<DbTransaction | null> {
     const result = await pool.query<DbTransaction>(
-        'SELECT * FROM transactions WHERE id = $1',
+        `SELECT id, user_id, breet_transaction_id, asset_amount, fiat_amount, locked_rate,
+                raw_breet_rate, service_margin, rate_locked_at, expires_at, deposit_address,
+                payout_bank_code, payout_account, payout_account_name, idempotency_key,
+                status, failure_reason, settled_rate, settled_fiat_amount
+         FROM transactions WHERE id = $1`,
         [txId],
     );
     return result.rows[0] ?? null;
@@ -132,7 +140,11 @@ export async function getTransactionByDepositAddress(
     depositAddress: string,
 ): Promise<DbTransaction | null> {
     const result = await pool.query<DbTransaction>(
-        'SELECT * FROM transactions WHERE deposit_address = $1',
+        `SELECT id, user_id, breet_transaction_id, asset_amount, fiat_amount, locked_rate,
+                raw_breet_rate, service_margin, rate_locked_at, expires_at, deposit_address,
+                payout_bank_code, payout_account, payout_account_name, idempotency_key,
+                status, failure_reason, settled_rate, settled_fiat_amount
+         FROM transactions WHERE deposit_address = $1`,
         [depositAddress],
     );
     return result.rows[0] ?? null;
@@ -142,7 +154,11 @@ export async function getTransactionByBreetId(
     breetTransactionId: string,
 ): Promise<DbTransaction | null> {
     const result = await pool.query<DbTransaction>(
-        'SELECT * FROM transactions WHERE breet_transaction_id = $1',
+        `SELECT id, user_id, breet_transaction_id, asset_amount, fiat_amount, locked_rate,
+                raw_breet_rate, service_margin, rate_locked_at, expires_at, deposit_address,
+                payout_bank_code, payout_account, payout_account_name, idempotency_key,
+                status, failure_reason, settled_rate, settled_fiat_amount
+         FROM transactions WHERE breet_transaction_id = $1`,
         [breetTransactionId],
     );
     return result.rows[0] ?? null;
@@ -261,4 +277,46 @@ export async function saveFailedWebhook(
         // Don't let the dead letter save fail silently crash the flow
         logger.error({ err, eventId }, 'Failed to save to failed_webhooks');
     }
+}
+
+// ─── Admin (Phase 7.1) ───────────────────────────────────────────────────────
+
+export async function getTodayVolumeStats(): Promise<{ totalVolume: number; profitMargin: number; activeCount: number }> {
+    const volRes = await pool.query<{ total: string }>(`
+        SELECT COALESCE(SUM(settled_fiat_amount), 0) as total
+        FROM transactions
+        WHERE status = 'COMPLETED' AND created_at::date = CURRENT_DATE
+    `);
+    const profRes = await pool.query<{ profit: string }>(`
+        SELECT COALESCE(SUM(service_margin), 0) as profit
+        FROM transactions
+        WHERE status = 'COMPLETED' AND created_at::date = CURRENT_DATE
+    `);
+    const activeRes = await pool.query<{ count: string }>(`
+        SELECT COUNT(id) as count
+        FROM transactions
+        WHERE status IN ('AWAITING_DEPOSIT', 'PROCESSING')
+    `);
+
+    return {
+        totalVolume: Number(volRes.rows[0]?.total ?? 0),
+        profitMargin: Number(profRes.rows[0]?.profit ?? 0),
+        activeCount: Number(activeRes.rows[0]?.count ?? 0),
+    };
+}
+
+export async function getFailedWebhooks(limit = 5): Promise<Array<{ id: number; event_id: string; error: string; created_at: Date }>> {
+    const res = await pool.query(
+        'SELECT id, event_id, error, created_at FROM failed_webhooks ORDER BY created_at DESC LIMIT $1',
+        [limit]
+    );
+    return res.rows;
+}
+
+export async function setBlockStatus(userId: string, isBlocked: boolean): Promise<boolean> {
+    const res = await pool.query(
+        'UPDATE users SET is_blocked = $1 WHERE id = $2 RETURNING id',
+        [isBlocked, userId]
+    );
+    return (res.rowCount ?? 0) > 0;
 }

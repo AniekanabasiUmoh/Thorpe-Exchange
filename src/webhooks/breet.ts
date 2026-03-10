@@ -23,7 +23,6 @@ import { withTransaction } from '../db/db.js';
 import {
   getTransactionByDepositAddress,
   getTransactionByBreetId,
-  updateTransactionStatus,
   writeAuditLog,
   isWebhookProcessed,
   markWebhookProcessed,
@@ -63,8 +62,13 @@ function eventToStatus(event: string): string {
 function verifySignature(rawBody: string, signatureHeader: string): boolean {
   const secret = env.BREET_WEBHOOK_SECRET;
   if (!secret) {
-    // In development without a secret configured, allow all (logged)
-    logger.warn('BREET_WEBHOOK_SECRET not set — skipping signature verification');
+    if (env.NODE_ENV === 'production') {
+      // env.ts .refine() prevents boot without this secret in production,
+      // but defend in depth — never skip verification on live traffic.
+      logger.error('BREET_WEBHOOK_SECRET not set in production — rejecting webhook');
+      return false;
+    }
+    logger.warn('BREET_WEBHOOK_SECRET not set — skipping signature verification (dev only)');
     return true;
   }
 
@@ -117,6 +121,11 @@ async function processWebhook(request: FastifyRequest): Promise<void> {
 
   logger.info({ eventId, event, breetTxId }, 'Breet webhook: processing');
 
+  // Determine extra fields based on event type, declared outside transaction for later use
+  let settledFiatAmount: number | undefined;
+  let settledRate: number | undefined;
+  let actualAssetAmount: number | undefined;
+
   try {
     // Step 3: Idempotency check
     if (await isWebhookProcessed(eventId)) {
@@ -156,24 +165,35 @@ async function processWebhook(request: FastifyRequest): Promise<void> {
       // Mark webhook as processed (idempotency)
       await markWebhookProcessed(eventId, client);
 
-      // Determine extra fields based on event type
-      let settledFiatAmount: number | undefined;
-      let settledRate: number | undefined;
-
-      // On deposit confirmed: check if rate has expired and recalculate
+      // On deposit confirmed: check if amount differs or rate has expired and recalculate
       if (event === 'DEPOSIT_CONFIRMED') {
+        const expectedAssetAmount = parseFloat(tx.asset_amount);
+        actualAssetAmount = payload.cryptoReceived !== undefined
+          ? parseFloat(payload.cryptoReceived)
+          : expectedAssetAmount;
+
+        let rateToUse = parseFloat(tx.locked_rate);
+
         const now = new Date();
         const rateExpiredAt = new Date(tx.expires_at);
+        const rateLockExpired = now > rateExpiredAt;
 
-        if (now > rateExpiredAt) {
-          // Rate expired — use the original locked rate so as not to shortchange user
-          // In production, Breet may provide the settled rate; using Thorpe's locked rate is safer
-          settledRate = parseFloat(tx.locked_rate);
-          settledFiatAmount = parseFloat(tx.asset_amount) * settledRate;
-
+        if (rateLockExpired) {
+          // Rate expired — honour the locked rate to avoid shortchanging the user.
           logger.warn(
-            { txId: tx.id, settledRate, settledFiatAmount },
-            'Webhook: rate was expired at deposit time — using locked rate',
+            { txId: tx.id, settledRate: rateToUse, originalAmount: tx.asset_amount, actualAmount: actualAssetAmount, expiredAt: tx.expires_at, depositReceivedAt: now.toISOString() },
+            'Webhook: RATE_LOCK_EXPIRED_AT_DEPOSIT — deposit arrived after rate window; honouring locked rate',
+          );
+        }
+
+        // Calculate fiat equivalent using exact asset amount received
+        settledRate = rateToUse;
+        settledFiatAmount = actualAssetAmount * rateToUse;
+
+        if (actualAssetAmount !== expectedAssetAmount) {
+          logger.warn(
+            { txId: tx.id, expected: expectedAssetAmount, received: actualAssetAmount },
+            'Webhook: PARTIAL_OR_OVER_PAYMENT detected. Calculated fiat payout based strictly on actual received amount.',
           );
         }
       }
@@ -204,12 +224,16 @@ async function processWebhook(request: FastifyRequest): Promise<void> {
       await writeAuditLog(event, 'breet', {
         transactionId: tx.id,
         userId: tx.user_id,
-        payload: { eventId, nextStatus, settledFiatAmount, settledRate },
+        payload: { eventId, nextStatus, settledFiatAmount, settledRate, actualAssetAmount },
         client,
       });
     });
 
     logger.info({ txId: tx.id, event, nextStatus }, 'Breet webhook: processed successfully');
+
+    // Mutate tx object with correctly finalized values so the notification prints accurately
+    if (settledFiatAmount !== undefined) tx.settled_fiat_amount = String(settledFiatAmount);
+    if (actualAssetAmount !== undefined) tx.asset_amount = String(actualAssetAmount);
 
     // Step 8: Notify user (best-effort — failure here must not unwind the DB commit)
     await notifyUser(tx, event, payload).catch((err: unknown) => {

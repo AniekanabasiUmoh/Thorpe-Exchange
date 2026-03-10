@@ -13,5 +13,5 @@ export async function handleMetaWebhook(
   await reply.code(200).send({ ok: true });
 
   // TODO: Sprint 4.2 — route to WhatsApp handler
-  logger.info({ body: request.body }, 'Meta/WhatsApp webhook received — stub');
+  logger.info('Meta/WhatsApp webhook received — stub');
 }

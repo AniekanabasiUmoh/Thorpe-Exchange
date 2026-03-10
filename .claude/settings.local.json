@@ -10,7 +10,9 @@
       "Bash(DATABASE_URL=\"\" REDIS_URL=\"\" npx tsx -e \"import ''./src/config/env.js''\")",
       "Bash(DATABASE_URL=\"postgresql://x:x@localhost:5432/x\" REDIS_URL=\"redis://localhost:6379\" npm test)",
       "Bash(python3 -c \":*)",
-      "Bash(node -e \"console.log\\(typeof crypto, crypto.randomUUID\\(\\)\\)\")"
+      "Bash(node -e \"console.log\\(typeof crypto, crypto.randomUUID\\(\\)\\)\")",
+      "Bash(git rm --cached .env)",
+      "WebFetch(domain:docs.breet.io)"
     ]
   }
 }

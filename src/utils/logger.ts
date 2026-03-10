@@ -10,14 +10,20 @@ const redactPaths = [
   'TELEGRAM_WEBHOOK_SECRET',
   'TWILIO_AUTH_TOKEN',
   'SENTRY_DSN',
-  // Request/response fields
+  'ADMIN_API_KEY',
+  // Request/response/payload fields
   'req.headers.authorization',
   'req.headers["x-twilio-signature"]',
   'req.headers["x-breet-signature"]',
+  'req.headers["x-admin-key"]',
   'body.accountNumber',
   'body.payout_account',
   'payload.accountNumber',
   'payload.payout_account',
+  'deposit_address',
+  '*.deposit_address',
+  'body.deposit_address',
+  'payload.deposit_address',
 ];
 
 const baseOptions = {
@@ -33,12 +39,12 @@ const baseOptions = {
 export const logger =
   env.NODE_ENV !== 'production'
     ? pino({
-        ...baseOptions,
-        transport: {
-          target: 'pino-pretty',
-          options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' },
-        },
-      })
+      ...baseOptions,
+      transport: {
+        target: 'pino-pretty',
+        options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' },
+      },
+    })
     : pino(baseOptions);
 
 export type Logger = typeof logger;

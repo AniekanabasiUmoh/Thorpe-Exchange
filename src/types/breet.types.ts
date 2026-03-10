@@ -33,7 +33,8 @@ export type BreetWebhookPayload = {
   event: BreetWebhookEvent;
   transactionId: string;
   depositAddress?: string;
-  amount?: number;
+  cryptoReceived?: string;  // actual crypto amount received (e.g. "98.500000") — Breet field
+  amountReceived?: number;  // fiat equivalent of what was received
   timestamp: string;
   [key: string]: unknown;
 };

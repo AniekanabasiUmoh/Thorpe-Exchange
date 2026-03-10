@@ -10,6 +10,7 @@
 import { Redis } from 'ioredis';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { getRedisClient } from '../db/redis.js';
 import type { UserSession } from '../types/session.types.js';
 
 const SESSION_TTL_SECONDS = 30 * 60; // 30 minutes
@@ -30,20 +31,17 @@ let _sessionService: SessionService | null = null;
 export function getSessionService(): SessionService {
   if (!_sessionService) {
     try {
-      const redis = new Redis(env.REDIS_URL, {
-        maxRetriesPerRequest: 3,
-        lazyConnect: false,
-        enableReadyCheck: true,
-      });
-
-      redis.on('error', (err: Error) => {
-        logger.warn({ err }, 'Redis error — session service may fall back to in-memory');
-      });
-
+      const redis = getRedisClient();
       _sessionService = new RedisSessionService(redis);
       logger.info('Session service: Redis');
     } catch (err) {
-      logger.warn({ err }, 'Redis unavailable — using in-memory session fallback');
+      if (env.NODE_ENV === 'production') {
+        // In production, a missing Redis connection means sessions can't be shared
+        // across instances — fail hard rather than silently degrade.
+        logger.fatal({ err }, 'Redis unavailable in production — cannot start safely');
+        process.exit(1);
+      }
+      logger.warn({ err }, 'Redis unavailable — using in-memory session fallback (dev only)');
       _sessionService = new InMemorySessionService();
     }
   }
@@ -68,7 +66,7 @@ function freshSession(userId: string, channel: 'whatsapp' | 'telegram'): UserSes
 // ─── Redis Implementation ─────────────────────────────────────────────────────
 
 export class RedisSessionService implements SessionService {
-  constructor(private readonly redis: Redis) {}
+  constructor(private readonly redis: Redis) { }
 
   async getSession(userId: string, channel: 'whatsapp' | 'telegram'): Promise<UserSession> {
     const raw = await this.redis.get(sessionKey(userId));
@@ -102,7 +100,7 @@ export class RedisSessionService implements SessionService {
    * Postgres owns the state from this point; Redis session persists until explicitly cleared.
    */
   async dropTtl(userId: string): Promise<void> {
-    await this.redis.persist(sessionKey(userId));
+    await this.redis.expire(sessionKey(userId), 24 * 60 * 60); // Max 24h
   }
 }
 
@@ -151,7 +149,7 @@ export class InMemorySessionService implements SessionService {
   async dropTtl(userId: string): Promise<void> {
     const entry = this.store.get(userId);
     if (entry) {
-      entry.expiresAt = null; // null = never expires
+      entry.expiresAt = Date.now() + 24 * 60 * 60 * 1000; // Max 24h cap
     }
   }
 

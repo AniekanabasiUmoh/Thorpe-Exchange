@@ -12,7 +12,7 @@ export const pool = new Pool({
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
 });
 
 pool.on('error', (err) => {
@@ -36,8 +36,8 @@ export async function connectWithRetry(): Promise<void> {
       logger.warn({ attempt, delay, err }, 'DB connection failed, retrying...');
 
       if (attempt === MAX_RETRIES) {
-        logger.fatal({ err }, 'DB connection failed after max retries. Exiting.');
-        process.exit(1);
+        logger.fatal({ err }, 'DB connection failed after max retries.');
+        throw new Error(`Database connection failed after ${MAX_RETRIES} attempts: ${err instanceof Error ? err.message : String(err)}`);
       }
 
       await sleep(delay);

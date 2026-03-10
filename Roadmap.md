@@ -340,8 +340,8 @@ async function handleBreetWebhook(request, reply) {
 
 ---
 
-### Sprint 4.2 — WhatsApp Bot (Day 8–9)
-**Assign to: Claude CLI** *(once Twilio keys arrive)*
+### Sprint 4.2 — WhatsApp Bot Scaffolding (Day 8–9)
+**Assign to: Claude CLI / Gemini** *(Scaffold before Twilio keys arrive)*
 
 - [ ] Twilio webhook receives messages, routes to same `handleMessage()`
 - [ ] WhatsApp interactive list messages for bank selection
@@ -464,10 +464,11 @@ Run every one of these manually before any real user:
 - [ ] `/admin health` — quick check on DB, Redis, and Breet API statuses
 
 ### Sprint 7.2 — Admin Web Dashboard (Post-Launch)
-**Assign to: Claude CLI**
+**Assign to: Gemini / Claude CLI**
 
-- [ ] Minimal Next.js dashboard with a JWT-protected API
-- [ ] Display daily P&L charts, transaction tables with filters, and user management capabilities
+- [ ] Complete Next.js (App Router) dashboard with Tailwind CSS and a JWT-protected Fastify API
+- [ ] Overview page: 4 KPI cards (Total Volume, Daily Profit Margin, Active Sessions, Blocked Users) powered by Lucide React icons
+- [ ] Display daily P&L charts (via Recharts), searchable transaction lists with filters, and user management capabilities
 - [ ] Visualize data from `audit_log` and the `transactions.fee_amount/service_margin` column
 
 ---

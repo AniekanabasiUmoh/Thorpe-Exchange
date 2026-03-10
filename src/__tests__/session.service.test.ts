@@ -194,9 +194,11 @@ describe('RedisSessionService', () => {
     expect(mockRedis.expire).toHaveBeenCalledWith('session:u5', 30 * 60);
   });
 
-  it('dropTtl — calls persist to remove expiry', async () => {
-    mockRedis.persist.mockResolvedValue(1);
+  it('dropTtl — calls expire to set 24h limit', async () => {
+    mockRedis.expire.mockResolvedValue(1);
+
     await svc.dropTtl('u6');
-    expect(mockRedis.persist).toHaveBeenCalledWith('session:u6');
+
+    expect(mockRedis.expire).toHaveBeenCalledWith('session:u6', 24 * 60 * 60);
   });
 });

@@ -54,6 +54,7 @@ export function createTelegramBot(services: EngineServices): Bot<Context> {
   // ── /start command ───────────────────────────────────────────────────────────
 
   bot.command('start', async (ctx) => {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing').catch(() => { });
     const response = await engine.handleMessage({
       userId: String(ctx.chat.id),
       channel: 'telegram',
@@ -65,6 +66,7 @@ export function createTelegramBot(services: EngineServices): Bot<Context> {
   // ── /help command ────────────────────────────────────────────────────────────
 
   bot.command('help', async (ctx) => {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing').catch(() => { });
     const response = await engine.handleMessage({
       userId: String(ctx.chat.id),
       channel: 'telegram',
@@ -76,6 +78,7 @@ export function createTelegramBot(services: EngineServices): Bot<Context> {
   // ── /cancel command ──────────────────────────────────────────────────────────
 
   bot.command('cancel', async (ctx) => {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing').catch(() => { });
     const response = await engine.handleMessage({
       userId: String(ctx.chat.id),
       channel: 'telegram',
@@ -87,6 +90,7 @@ export function createTelegramBot(services: EngineServices): Bot<Context> {
   // ── /status command ──────────────────────────────────────────────────────────
 
   bot.command('status', async (ctx) => {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing').catch(() => { });
     const response = await engine.handleMessage({
       userId: String(ctx.chat.id),
       channel: 'telegram',
@@ -98,12 +102,27 @@ export function createTelegramBot(services: EngineServices): Bot<Context> {
   // ── /support command ─────────────────────────────────────────────────────────
 
   bot.command('support', async (ctx) => {
+    await ctx.api.sendChatAction(ctx.chat.id, 'typing').catch(() => { });
     const response = await engine.handleMessage({
       userId: String(ctx.chat.id),
       channel: 'telegram',
       text: 'support',
     });
     await sendTelegramMessage(bot, ctx.chat.id, response);
+  });
+
+  // ── /admin command (Phase 7.1) ───────────────────────────────────────────────
+
+  bot.command('admin', async (ctx) => {
+    const { isAdmin, handleAdminCommand } = await import('./admin.js');
+    if (!isAdmin(ctx.chat.id)) {
+      // Silently ignore or return standard bot response
+      return;
+    }
+
+    // Pass the full text and caller ID (for audit logging inside the handler)
+    const replyText = await handleAdminCommand(ctx.message?.text ?? '', ctx.chat.id);
+    await sendTelegramMessage(bot, ctx.chat.id, { text: replyText });
   });
 
   // ── Inline keyboard callbacks ────────────────────────────────────────────────
@@ -113,6 +132,8 @@ export function createTelegramBot(services: EngineServices): Bot<Context> {
     await ctx.answerCallbackQuery();
 
     const chatId = String(ctx.chat?.id ?? ctx.from.id);
+    if (ctx.chat) await ctx.api.sendChatAction(ctx.chat.id, 'typing').catch(() => { });
+
     const response = await engine.handleMessage({
       userId: chatId,
       channel: 'telegram',
@@ -130,6 +151,8 @@ export function createTelegramBot(services: EngineServices): Bot<Context> {
 
     // Slash commands are handled above — skip them here to avoid double firing
     if (text.startsWith('/')) return;
+
+    if (ctx.chat) await ctx.api.sendChatAction(ctx.chat.id, 'typing').catch(() => { });
 
     const response = await engine.handleMessage({
       userId: String(ctx.chat.id),

@@ -14,7 +14,7 @@
  * Usage:
  *   curl -X POST http://localhost:3000/dev/simulate/deposit \
  *     -H "Content-Type: application/json" \
- *     -d '{"depositAddress": "TRC20_MOCK_ABCD1234", "amount": 100}'
+ *     -d '{"depositAddress": "TRC20_MOCK_ABCD1234", "cryptoReceived": "98.5"}'
  */
 import { createHmac } from 'crypto';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -82,7 +82,7 @@ async function dispatchWebhook(
 type SimulateDepositBody = {
   depositAddress?: string;
   transactionId?: string;
-  amount?: number;
+  cryptoReceived?: string; // actual received amount (e.g. "98.5") — matches Breet field name
 };
 
 type SimulatePayoutBody = {
@@ -106,12 +106,12 @@ async function simulateDeposit(
   request: FastifyRequest<{ Body: SimulateDepositBody }>,
   reply: FastifyReply,
 ): Promise<void> {
-  const { depositAddress, transactionId, amount = 100 } = request.body ?? {};
+  const { depositAddress, transactionId, cryptoReceived = '100' } = request.body ?? {};
 
   const result = await dispatchWebhook('DEPOSIT_CONFIRMED', {
     depositAddress: depositAddress ?? `TRC20_MOCK_${Date.now()}`,
     transactionId: transactionId ?? `mock_tx_sim_${Date.now()}`,
-    amount,
+    cryptoReceived,
   });
 
   await reply.send({
@@ -175,6 +175,45 @@ async function simulateFail(
   });
 }
 
+export type SimulateWhatsAppBody = {
+  from?: string; // e.g. 'whatsapp:+1234567890'
+  body?: string; // The user's text
+};
+
+async function simulateWhatsApp(
+  request: FastifyRequest<{ Body: SimulateWhatsAppBody }>,
+  reply: FastifyReply,
+): Promise<void> {
+  const { from = 'whatsapp:+1234567890', body = 'hello' } = request.body ?? {};
+
+  const webhookUrl = `http://localhost:${env.PORT}/webhook/twilio`;
+
+  const formData = new URLSearchParams();
+  formData.append('From', from);
+  formData.append('Body', body);
+  formData.append('NumMedia', '0'); // Required to pass our media check
+  formData.append('SmsMessageSid', `sim_wa_${Date.now()}`);
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData.toString(),
+    });
+
+    await reply.send({
+      ok: response.ok,
+      message: 'WhatsApp webhook simulated',
+      status: response.status,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Failed to simulate WhatsApp event');
+    await reply.code(500).send({ ok: false, error: String(err) });
+  }
+}
+
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 export function registerSimulatorRoutes(app: FastifyInstance): void {
@@ -182,6 +221,7 @@ export function registerSimulatorRoutes(app: FastifyInstance): void {
   app.post<{ Body: SimulatePayoutBody }>('/dev/simulate/payout', simulatePayout);
   app.post<{ Body: SimulateExpireBody }>('/dev/simulate/expire', simulateExpire);
   app.post<{ Body: SimulateFailBody }>('/dev/simulate/fail', simulateFail);
+  app.post<{ Body: SimulateWhatsAppBody }>('/dev/simulate/whatsapp', simulateWhatsApp);
 
-  logger.info('Dev simulator routes registered: /dev/simulate/{deposit,payout,expire,fail}');
+  logger.info('Dev simulator routes registered: /dev/simulate/{deposit,payout,expire,fail,whatsapp}');
 }

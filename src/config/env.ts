@@ -40,13 +40,33 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_WHATSAPP_NUMBER: z.string().optional(),
+  TWILIO_BUTTON_TEMPLATE_SID: z.string().optional(),
+  TWILIO_LIST_TEMPLATE_SID: z.string().optional(),
 
   // Support
   SUPPORT_CONTACT: z.string().optional(),
 
   // Sentry
   SENTRY_DSN: z.string().url().optional(),
-});
+
+  // Admin API (required in production)
+  ADMIN_API_KEY: z.string().optional(),
+
+  // Admin dashboard CORS origin (required in production)
+  ADMIN_DASHBOARD_URL: z.string().url().optional(),
+}).refine(
+  (data) => data.NODE_ENV !== 'production' || !!data.BREET_WEBHOOK_SECRET,
+  { message: 'BREET_WEBHOOK_SECRET is required in production', path: ['BREET_WEBHOOK_SECRET'] },
+).refine(
+  (data) => data.NODE_ENV !== 'production' || !!data.TELEGRAM_WEBHOOK_SECRET,
+  { message: 'TELEGRAM_WEBHOOK_SECRET is required in production', path: ['TELEGRAM_WEBHOOK_SECRET'] },
+).refine(
+  (data) => data.NODE_ENV !== 'production' || !!data.ADMIN_API_KEY,
+  { message: 'ADMIN_API_KEY is required in production', path: ['ADMIN_API_KEY'] },
+).refine(
+  (data) => data.NODE_ENV !== 'production' || (data.ADMIN_API_KEY?.length ?? 0) >= 32,
+  { message: 'ADMIN_API_KEY must be at least 32 characters in production', path: ['ADMIN_API_KEY'] },
+);
 
 const parsed = envSchema.safeParse(process.env);
 

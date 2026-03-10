@@ -54,6 +54,8 @@ export function createEngine(services: EngineServices) {
     return { handleMessage: handleMessage.bind(null, services, rateService) };
 }
 
+import { checkRateLimit } from '../middleware/rate.limiter.js';
+
 // ─── Main dispatcher ──────────────────────────────────────────────────────────
 
 async function handleMessage(
@@ -65,6 +67,12 @@ async function handleMessage(
     const text = params.text.trim().toLowerCase();
 
     try {
+        // Rate limit check — drop before hitting DB
+        const allowed = await checkRateLimit(userId, channel);
+        if (!allowed) {
+            return respond('⏳ Please slow down. You are sending messages too quickly.');
+        }
+
         // Ensure user record exists in DB
         const dbUser = await createOrFindUser(channel, userId);
 
@@ -582,6 +590,19 @@ async function handleSupportEscalation(
         transactionId: session.transactionId ?? undefined,
         userId: dbUserId,
     });
+
+    if (env.TELEGRAM_ADMIN_ID) {
+        services.notificationService.send({
+            userId: env.TELEGRAM_ADMIN_ID,
+            channel: 'telegram',
+            message: {
+                text: `🚨 *Support request*\nUser: \`${session.userId}\` (${session.channel})\nTxID: \`${session.transactionId ?? 'None'}\``,
+                parseMode: 'Markdown',
+            }
+        }).catch((err) => {
+            logger.error({ err }, 'Failed to notify admin of support escalation');
+        });
+    }
 
     const contact = env.SUPPORT_CONTACT ?? 'our team';
     return respond(
