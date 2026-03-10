@@ -19,22 +19,27 @@ export class RedisSessionService implements SessionService {
     _userId: string,
     _channel: 'whatsapp' | 'telegram',
   ): Promise<UserSession> {
+    await Promise.resolve();
     throw new Error('RedisSessionService not yet implemented');
   }
 
   async setSession(_userId: string, _session: UserSession): Promise<void> {
+    await Promise.resolve();
     throw new Error('RedisSessionService not yet implemented');
   }
 
   async clearSession(_userId: string): Promise<void> {
+    await Promise.resolve();
     throw new Error('RedisSessionService not yet implemented');
   }
 
   async extendSession(_userId: string): Promise<void> {
+    await Promise.resolve();
     throw new Error('RedisSessionService not yet implemented');
   }
 
   async dropTtl(_userId: string): Promise<void> {
+    await Promise.resolve();
     throw new Error('RedisSessionService not yet implemented');
   }
 }

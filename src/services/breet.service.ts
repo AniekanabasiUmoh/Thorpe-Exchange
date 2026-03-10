@@ -19,15 +19,18 @@ export function createBreetService(): BreetService {
 
 class MockBreetService implements BreetService {
   async getLimits() {
+    await Promise.resolve();
     return { minAmount: 10, maxAmount: 10000 };
   }
 
   async getRate() {
+    await Promise.resolve();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     return { rate: 1520, expiresAt };
   }
 
   async getBanks() {
+    await Promise.resolve();
     return [
       { code: '044', name: 'Access Bank' },
       { code: '058', name: 'Guaranty Trust Bank' },
@@ -49,6 +52,7 @@ class MockBreetService implements BreetService {
     accountNumber: string;
     idempotencyKey: string;
   }) {
+    await Promise.resolve();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     return {
       transactionId: `mock_tx_${Date.now()}`,
@@ -58,6 +62,7 @@ class MockBreetService implements BreetService {
   }
 
   async getTransaction(breetTransactionId: string) {
+    await Promise.resolve();
     return { status: 'PROCESSING', transactionId: breetTransactionId };
   }
 }
@@ -68,14 +73,17 @@ class RealBreetService implements BreetService {
   // TODO: Sprint 2.1 (Gemini) — implement real Breet API calls with retry + circuit breaker
 
   async getLimits(): Promise<{ minAmount: number; maxAmount: number }> {
+    await Promise.resolve();
     throw new Error('RealBreetService not yet implemented');
   }
 
   async getRate(): Promise<{ rate: number; expiresAt: string }> {
+    await Promise.resolve();
     throw new Error('RealBreetService not yet implemented');
   }
 
   async getBanks(): Promise<Array<{ code: string; name: string }>> {
+    await Promise.resolve();
     throw new Error('RealBreetService not yet implemented');
   }
 
@@ -83,6 +91,7 @@ class RealBreetService implements BreetService {
     _bankCode: string,
     _accountNumber: string,
   ): Promise<{ accountName: string }> {
+    await Promise.resolve();
     throw new Error('RealBreetService not yet implemented');
   }
 
@@ -92,6 +101,7 @@ class RealBreetService implements BreetService {
     accountNumber: string;
     idempotencyKey: string;
   }): Promise<{ transactionId: string; depositAddress: string; expiresAt: string }> {
+    await Promise.resolve();
     throw new Error('RealBreetService not yet implemented');
   }
 
@@ -99,6 +109,7 @@ class RealBreetService implements BreetService {
     status: string;
     [key: string]: unknown;
   }> {
+    await Promise.resolve();
     throw new Error('RealBreetService not yet implemented');
   }
 }

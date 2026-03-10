@@ -22,6 +22,7 @@ export class QueuedNotificationService implements NotificationService {
     message: BotResponse;
   }): Promise<void> {
     // Stub: log only
+    await Promise.resolve();
     logger.info(
       { userId: params.userId, channel: params.channel },
       `[STUB] Notification: ${params.message.text.slice(0, 60)}...`,

@@ -11,6 +11,7 @@ export async function verifyBreetSignature(
   _reply: FastifyReply,
 ): Promise<void> {
   // TODO: Sprint 5.1 — implement HMAC-SHA256 signature verification
+  await Promise.resolve();
   logger.debug('Breet signature verification — stub (passes all)');
 }
 
@@ -19,5 +20,6 @@ export async function verifyTwilioSignature(
   _reply: FastifyReply,
 ): Promise<void> {
   // TODO: Sprint 5.1 — implement Twilio signature verification
+  await Promise.resolve();
   logger.debug('Twilio signature verification — stub (passes all)');
 }
