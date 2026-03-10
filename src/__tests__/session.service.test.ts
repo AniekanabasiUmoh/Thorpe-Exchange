@@ -80,13 +80,17 @@ describe('InMemorySessionService', () => {
     expect(newExpiry).toBeGreaterThan(oldExpiry - 1000); // extended
   });
 
-  it('dropTtl — removes expiry so session lives forever', async () => {
+  it('dropTtl — sets 24h max expiry instead of removing TTL', async () => {
+    const before = Date.now();
     await svc.getSession('user_5', 'telegram');
     await svc.dropTtl('user_5');
 
     const entry = (svc as unknown as { store: Map<string, { session: UserSession; expiresAt: number | null }> })
       .store.get('user_5');
-    expect(entry?.expiresAt).toBeNull();
+    // Should be ~24h from now, not null
+    expect(entry?.expiresAt).not.toBeNull();
+    expect(entry!.expiresAt!).toBeGreaterThanOrEqual(before + 24 * 60 * 60 * 1000 - 100);
+    expect(entry!.expiresAt!).toBeLessThanOrEqual(before + 24 * 60 * 60 * 1000 + 1000);
   });
 
   it('expired session — returns fresh IDLE session after TTL passes', async () => {
@@ -101,15 +105,14 @@ describe('InMemorySessionService', () => {
     expect(fresh.step).toBe('IDLE');
   });
 
-  it('session with dropTtl — does not expire', async () => {
+  it('session with dropTtl — does not expire within 24h', async () => {
     await svc.setSession('user_7', { userId: 'user_7', channel: 'telegram', step: 'AWAITING_DEPOSIT' });
     await svc.dropTtl('user_7');
 
-    // Simulate time passing past normal TTL
+    // Simulate time passing past normal 30-min TTL (but well within the 24h cap)
     const entry = (svc as unknown as { store: Map<string, { session: UserSession; expiresAt: number | null }> })
       .store.get('user_7');
-    // expiresAt is null — session should NOT be treated as expired
-    expect(entry?.expiresAt).toBeNull();
+    entry!.expiresAt = Date.now() + 1000; // still in the future → not expired
 
     const retrieved = await svc.getSession('user_7', 'telegram');
     expect(retrieved.step).toBe('AWAITING_DEPOSIT'); // still intact

@@ -48,7 +48,6 @@ app.register(adminApiPlugin, { prefix: '/api/admin' });
 // ─── Request logging ──────────────────────────────────────────────────────────
 
 app.addHook('onRequest', async (request) => {
-  request.log = logger.child({ requestId: request.id });
   logger.info({ method: request.method, url: request.url, requestId: request.id }, 'Request received');
 });
 
@@ -72,11 +71,12 @@ app.setErrorHandler((error, request, reply) => {
   }
 
   // Never expose internal details to clients
-  const statusCode = error.statusCode ?? 500;
+  const err = error as { statusCode?: number; message?: string };
+  const statusCode = err.statusCode ?? 500;
   const isClientError = statusCode >= 400 && statusCode < 500;
 
   void reply.code(statusCode).send({
-    error: isClientError ? error.message : 'Internal server error',
+    error: isClientError ? (err.message ?? 'Bad request') : 'Internal server error',
     statusCode,
   });
 });
