@@ -3,10 +3,14 @@ import Fastify from 'fastify';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { connectWithRetry, pool } from './db/db.js';
-import { handleBreetWebhook } from './webhooks/breet.js';
+import { handleBreetWebhook, setNotificationService } from './webhooks/breet.js';
 import { handleTelegramWebhook } from './webhooks/telegram.js';
 import { handleMetaWebhook } from './webhooks/meta.js';
 import { registerSimulatorRoutes } from './webhooks/simulator.js';
+import { createTelegramBot, registerTelegramWebhook } from './bot/telegram/index.js';
+import { DirectNotificationService } from './services/notification.service.js';
+import { createBreetService } from './services/breet.service.js';
+import { getSessionService } from './services/session.service.js';
 
 const app = Fastify({
   logger: false, // We use our own Pino instance
@@ -107,6 +111,40 @@ async function start() {
   // Connect to DB first — crashes on failure (intended)
   await connectWithRetry();
 
+  // ── Wire up services ────────────────────────────────────────────────────────
+  const breetService = createBreetService();
+  const sessionService = getSessionService();
+  const notificationService = new DirectNotificationService();
+
+  const engineServices = { breetService, sessionService, notificationService };
+
+  // ── Create Telegram bot (if token is configured) ────────────────────────────
+  if (env.TELEGRAM_BOT_TOKEN) {
+    try {
+      const bot = createTelegramBot(engineServices);
+
+      // Wire notification service into the webhook handler
+      setNotificationService(notificationService);
+
+      // Register webhook URL with Telegram (idempotent)
+      if (env.NODE_ENV === 'production') {
+        const host = process.env['RAILWAY_STATIC_URL'] ?? process.env['APP_URL'];
+        if (host) {
+          await registerTelegramWebhook(bot, `https://${host}/webhook/telegram`);
+        } else {
+          logger.warn('No APP_URL set — Telegram webhook not registered. Set APP_URL env var.');
+        }
+      } else {
+        logger.info('Development mode — Telegram in polling or manual webhook mode');
+        // Webhook is set manually via ngrok / Railway preview URL
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Telegram bot failed to start — continuing without it');
+    }
+  } else {
+    logger.warn('TELEGRAM_BOT_TOKEN not set — Telegram bot disabled');
+  }
+
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     logger.info({ port: env.PORT }, `Server listening on port ${env.PORT}`);
@@ -117,3 +155,4 @@ async function start() {
 }
 
 void start();
+
